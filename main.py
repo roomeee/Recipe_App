@@ -2,73 +2,173 @@ import tkinter as tk
 from PIL import ImageTk
 import sqlite3
 from numpy import random
-YELLOW = "#edc861"
+
+
+bg_colour= "#edc861"
 DARK = '#e6a330'
 
 
+
+
+def clear_widgets(frame):
+    for widget in frame.winfo_children():
+        widget.destroy()
+
+
 def fetch_db():
+    # connect an sqlite database
     connection = sqlite3.connect("recipes (1).db")
     cursor = connection.cursor()
+
     # fetch all the table names
-    cursor.execute("SELECT * FROM sqlite_schema WHERE type='table';")
-    all_tables = cursor.fetchall()
+    cursor.execute("SELECT title, primary_key FROM recipes;")
+    titles = cursor.fetchall()
 
     # choose random table idx
-    idx = random.randint(0, len(all_tables) - 1)
-
+    idx = random.randint(0, len(titles) - 1)
 
     # fetch records from table
-    table_name = all_tables[idx][1]
-    cursor.execute("SELECT * FROM " + table_name + ";")
+    recipe_name = titles[idx]
+    cursor.execute("SELECT name, qty, unit FROM ingredients WHERE recipe_key=:k;", {"k": idx})
     table_records = cursor.fetchall()
 
+    # terminate connection with database
     connection.close()
 
-    return table_name, table_records
+    return recipe_name, table_records
+
+
+def pre_process(recipe_name, table_records):
+    # preprocess table name
+    title = recipe_name[0]
+
+    # preprocess table records
+    ingredients = []
+
+    for i in table_records:
+        name = i[0]
+        unit = i[2]
+        # if qty is a whole numbe
+        if type(i[1]) == float:
+            # convert it to an integer
+            qty = int(i[1])
+        else:
+            # otherwise - keep as is
+            qty = i[1]
+
+        # handle missing dataset values
+        if qty == None:
+            ingredients.append(name)
+        elif unit == None:
+            ingredients.append(str(qty) + " " + name)
+        else:
+            # otherwise - include all table records
+            ingredients.append(str(qty) + " " + str(unit) + " of " + name)
+
+    return title, ingredients
 
 
 def load_frame1():
+    clear_widgets(frame2)
+    # stack frame 1 above frame 2
+    frame1.tkraise()
+    # prevent widgets from modifying the frame
     frame1.pack_propagate(False)
 
-    logo = ImageTk.PhotoImage(file="RRecipe_logo.png")
-    log_wid = tk.Label(frame1, image=logo, bg="#edc861")
-    log_wid.image = logo
-    log_wid.pack()
+    # create logo widget
+    logo_img = ImageTk.PhotoImage(file="RRecipe_logo.png")
+    logo_widget = tk.Label(frame1, image=logo_img, bg=bg_colour)
+    logo_widget.image = logo_img
+    logo_widget.pack()
 
-    bel1 = tk.Label(frame1, text="Random recipe ",
-                    bg=YELLOW,
-                    fg="white",
-                    font=("TkMenuFont", 14)
-                    )
-    bel1.pack()
+    # create label widget for instructions
+    tk.Label(
+        frame1,
+        text="ready for your random recipe?",
+        bg=bg_colour,
+        fg="white",
+        font=("Shanti", 14)
+    ).pack()
 
-    button = tk.Button(frame1,
-                       text="SHUFFLE",
-                       font=("TkHeadingFont", 20),
-                       bg=DARK,
-                       fg="white",
-                       cursor="hand2",
-                       activebackground=YELLOW,
-                       activeforeground='black',
-                       command=lambda: load_frame()
-                       )
-    button.pack(pady=20)
-
-
-def load_frame():
-    fetch_db()
-    print('djdjd')
+    # create button widget
+    tk.Button(
+        frame1,
+        text="SHUFFLE",
+        font=("Ubuntu", 20),
+        bg="#28393a",
+        fg="white",
+        cursor="hand2",
+        activebackground="#badee2",
+        activeforeground="black",
+        command=lambda: load_frame2()
+    ).pack(pady=20)
 
 
+def load_frame2():
+    clear_widgets(frame1)
+    # stack frame 2 above frame 1
+    frame2.tkraise()
+
+    # fetch from database
+
+    recipe_name, table_records = fetch_db()
+    title, ingredients = pre_process(recipe_name, table_records)
+
+    # create logo widget
+    logo_img = ImageTk.PhotoImage(file="RRecipe_logo.png")
+    logo_widget = tk.Label(frame2, image=logo_img, bg=bg_colour)
+    logo_widget.image = logo_img
+    logo_widget.pack(pady=20)
+
+    # recipe title widget
+    tk.Label(
+        frame2,
+        text=title,
+        bg=bg_colour,
+        fg="white",
+        font=("Arial", 20)
+    ).pack(pady=25, padx=25)
+
+    # recipe ingredients widgets
+    for i in ingredients:
+        tk.Label(
+            frame2,
+            text=i,
+            bg="#28393a",
+            fg="white",
+            font=("Arial", 10)
+        ).pack(fill="both", padx=22)
+
+    # 'back' button widget
+    tk.Button(
+        frame2,
+        text="BACK",
+        font=("Ubuntu", 18),
+        bg="#28393a",
+        fg="white",
+        cursor="hand2",
+        activebackground="#badee2",
+        activeforeground="black",
+        command=lambda: load_frame1()
+    ).pack(pady=20)
+
+
+# initiallize app with basic settings
 root = tk.Tk()
-
-root.title('recipe picker')
+root.title("Recipe Picker")
 root.eval("tk::PlaceWindow . center")
 
-frame1 = tk.Frame(root, width=500, height=600, bg="#edc861")
-frame2 = tk.Frame(root, bg="#edc861")
 
+# create a frame widgets
+frame1 = tk.Frame(root, width=500, height=600, bg=bg_colour)
+frame2 = tk.Frame(root, bg=bg_colour)
+
+# place frame widgets in window
 for frame in (frame1, frame2):
-    frame.grid(row=0, column=0)
+    frame.grid(row=0, column=0, sticky="nesw")
+
+# load the first frame
 load_frame1()
+
+# run app
 root.mainloop()
